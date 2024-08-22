@@ -8,6 +8,12 @@ async function fetchRepositoryContents(url) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
+    const linkHeader = response.headers.get("link");
+    if (linkHeader) {
+      const nextPageUrl = linkHeader.match(/<([^>]+)>; rel="next"/)[1];
+      const nextPageData = await fetchRepositoryContents(nextPageUrl);
+      data.push(...nextPageData);
+    }
     return data;
   } catch (error) {
     console.error("Failed to fetch repository contents:", error);
@@ -20,10 +26,12 @@ async function getImageFiles(data) {
   const imageFiles = [];
   for (const item of data) {
     if (item.type === "file" && isImage(item.name)) {
-      imageFiles.push(item.download_url);
+      imageFiles.push(
+        `https://api.github.com/repos/Mosberg/assets/contents/images/${item.path}`
+      );
     } else if (item.type === "dir") {
       // Recursively fetch subdirectory contents
-      const subdirectoryUrl = `https://api.github.com/repos/Mosberg/assets/contents/images/${item.name}`;
+      const subdirectoryUrl = `https://api.github.com/repos/Mosberg/assets/contents/${item.path}`;
       const subdirectoryData = await fetchRepositoryContents(subdirectoryUrl);
       if (subdirectoryData) {
         const subdirectoryImages = await getImageFiles(subdirectoryData);
@@ -54,7 +62,7 @@ function loadImages(imageUrls) {
 
 // Main execution
 async function main() {
-  const url = "https://api.github.com/repos/Mosberg/assets/contents/images";
+  const url = "https://api.github.com/repos/Mosberg/assets/contents/";
   const data = await fetchRepositoryContents(url);
   if (data) {
     const imageFiles = await getImageFiles(data);
